@@ -1,5 +1,7 @@
 # CFMANet
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 少样本工业缺陷分割（few-shot defect segmentation）代码库。本仓库提供 CFMANet 的模型定义与核心模块实现，单文件 `Final_CFMANet_TII.py` 即可给出完整网络。
 
 ---
@@ -169,7 +171,9 @@ query_label:  [B, H, W]         # 无效像素填 ignore_label
 
 ## License
 
-本项目采用 MIT License，可自由使用、修改、分发（含商业用途），保留版权声明即可。完整条款见 [LICENSE](LICENSE)。
+本项目采用 MIT License（SPDX 标识符：`MIT`），可自由使用、修改、分发（含商业用途），保留版权声明即可。完整条款见 [LICENSE](LICENSE)。
+
+Copyright (c) 2026 CFMANet contributors
 
 ---
 
