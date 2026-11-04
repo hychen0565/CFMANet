@@ -169,7 +169,7 @@ query_label:  [B, H, W]         # 无效像素填 ignore_label
 
 ## License
 
-本仓库代码开源，具体条款请参见仓库中的 `LICENSE` 文件。如暂未添加 `LICENSE`，请联系作者确认使用许可。
+本项目采用 MIT License，可自由使用、修改、分发（含商业用途），保留版权声明即可。完整条款见 [LICENSE](LICENSE)。
 
 ---
 
