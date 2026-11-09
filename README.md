@@ -2,72 +2,118 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-少样本工业缺陷分割（few-shot defect segmentation）代码库。本仓库提供 CFMANet 的模型定义与核心模块实现，单文件 `Final_CFMANet_TII.py` 即可给出完整网络。
+The official PyTorch implementation of **CFMANet** for **few-shot industrial defect segmentation**. This repository is a complete, runnable training and evaluation framework: the model and its core modules are implemented in `model/mfanet.py`, which ships together with the ResNet/VGG backbones, data loaders, configuration files, and the train/validation entry points.
 
 ---
 
-## 环境
+## Requirements
 
 - Python 3.8+
 - PyTorch >= 1.10
+- torchvision
 - numpy
-- torchvision（主干构建函数依赖其 `model_urls` 与 ImageNet 权重）
+- opencv-python
+- PyYAML
+- tqdm
+- tensorboard
 
-## 运行前提：需要 `model/` 包
-
-`Final_CFMANet_TII.py` 顶部有两条导入来自外部主干代码：
-
-```python
-import model.resnet as models
-import model.vgg as vgg_models
-```
-
-所以请把本文件放在提供 `model/resnet.py` 与 `model/vgg.py` 的训练框架仓库根目录下（或在同目录放置 `model/` 包），否则导入即失败。本仓库只包含模型与模块实现，不含主干代码、数据加载与训练入口。
+The backbone constructors rely on torchvision's `model_urls` and ImageNet weights.
 
 ---
 
-## 文件说明
+## Repository Structure
 
 ```text
 .
-├── Final_CFMANet_TII.py   # CFMANet 模型与核心模块
-└── model/                 # 需自备：resnet.py / vgg.py（ResNet / VGG16-BN 构建函数）
+├── train.py                  # Training entry point
+├── val.py                    # Standalone evaluation entry point
+├── config/
+│   └── fold0_resnet50.yaml    # Default configuration (ResNet-50, fold 0)
+├── model/
+│   ├── mfanet.py              # CFMANet model and core modules
+│   ├── resnet.py              # ResNet backbones
+│   └── vgg.py                 # VGG16-BN backbone
+├── util/
+│   ├── config.py              # YAML configuration loader
+│   ├── dataset_fss.py         # FSSD dataset / episodic loader
+│   ├── dataset_cdfss.py       # CGFSDS dataset / episodic loader
+│   ├── transform.py           # Data augmentation and transforms
+│   └── util.py                # Logging, initialization, and utilities
+├── data_list/                 # Image/mask list files for every split
+│   ├── defect_cdfssd/         # CGFSDS-9 lists (train / val)
+│   └── defect_fssd/           # FSSD-12 lists (fold 0 / 1 / 2)
+└── LICENSE                    # MIT License
 ```
-
-`Final_CFMANet_TII.py` 包含：
-
-| 名称 | 类型 | 作用 |
-| :--- | :--- | :--- |
-| `GBM` | 基础单元 | 1×1 → 3×3 深度可分离 → 1×1，带通道门控与残差 |
-| `GBM_ResBlock` | 基础单元 | 两层 `GBM` 构成的残差块 |
-| `AMGEBlock` / `AMGE` | 嵌入 | 通道一阶/二阶统计、统计整流门、表面响应抑制、门控残差融合 |
-| `WavePool` | 变换 | 固定 Haar 小波分解，输出 LL/LH/HL/HH；无参数、不参与训练 |
-| `MCA` | 注意力 | 分组方向注意力：长条池化 + 3×3 深度卷积 + 局部响应加权 |
-| `GLCM` | 注意力 | 通道注意力，兼容 4D 特征图与 3D 序列特征 |
-| `FDPG` | 原型生成 | GBM → Haar 分解 → 方向加权 → 高/低频路由 → 自注意力聚合 → 全局上下文，输出支撑集原型 |
-| `PMA` | 匹配 | patch 划分 + Sinkhorn 归一化 + 置信度门控融合 |
-| `SepAtrousConv` | 基础单元 | 空洞深度可分离卷积，`CMAD` 的多尺度分支 |
-| `CMAD` | 解码器 | query-support 融合 + 两级 2× 上采样 + 多尺度空洞 + 细节/语义双分支 → 分割头 |
-| `CFMANet` | 主模型 | 主干与上述模块组装，含参数冻结、损失与优化器接口 |
-| `mfanet` | 别名 | `CFMANet` 的兼容别名 |
 
 ---
 
-## 快速自检
+## Data Preparation
+
+The repository ships with the **list files** under `data_list/`, but not the raw images. Place the datasets under `data/` and point `DATA.data_root` in the YAML config to them:
+
+```text
+./data/CGFSDS-9     # default in config/fold0_resnet50.yaml
+./data/FSSD-12      # alternative dataset
+```
+
+The corresponding train/val list paths (`DATA.train_list`, `DATA.val_list`) are already configured in the YAML file; switch the commented entries to move between CGFSDS-9 and FSSD-12 or between folds.
+
+---
+
+## Getting Started
+
+### Training
 
 ```bash
-python Final_CFMANet_TII.py
+python train.py --config config/fold0_resnet50.yaml
 ```
 
-用 2×224×224 随机输入、1-shot、`classes=2` 跑一次前向与损失计算，不依赖数据集。输出参数量、可训练参数量、输出形状以及 total / main / patch 三项损失，最后打印 `CFMANet Test Passed!`。
+All hyperparameters (input size, batch size, learning rate, epochs, backbone, shot, snapshot path, etc.) are read from the YAML config. The default setup uses ResNet-50, 200×200 inputs, batch size 4, and 160 epochs.
 
-模型构造时按 `self.pretrained=True` 加载 ImageNet 权重，需要联网让 `model_zoo` 下载 `resnet50-19c8e357.pth`；离线环境请先把该文件放进 torch hub 缓存目录（默认 `~/.cache/torch/hub/checkpoints/`）。注意 `__main__` 中构造之后写的 `model.pretrained = False` 不会改变已加载的权重。
+### Evaluation
+
+```bash
+python val.py --config config/fold0_resnet50.yaml --resume <checkpoint_filename>
+```
+
+`--resume` is the checkpoint filename inside the snapshot directory defined in the YAML config (it overrides `TRAIN.resume`). If omitted, the value of `TRAIN.resume` is used; an error is raised when neither is set.
+
+### Model Self-Check
+
+```bash
+python model/mfanet.py
+```
+
+Runs a forward pass and loss computation with random `2×224×224` inputs, 1-shot and `classes=2`, without requiring any dataset. It prints the parameter count, trainable parameter count, output shape, and the total / main / patch losses, ending with `CFMANet Test Passed!`.
+
+The model is built with `pretrained=True` and loads ImageNet weights, which requires network access to download `resnet50-19c8e357.pth` (or place it in `~/.cache/torch/hub/checkpoints/` beforehand for offline use). Setting `model.pretrained = False` after construction does not change the already-loaded weights.
 
 ---
 
-## 结果
+## Core Modules
 
-输入 200×200，单卡推理，数值为测试集均值（%）：
+`model/mfanet.py` contains:
+
+| Name | Type | Purpose |
+| :--- | :--- | :--- |
+| `GBM` | Basic unit | 1×1 → 3×3 depthwise-separable → 1×1, with channel gating and a residual connection |
+| `GBM_ResBlock` | Basic unit | Residual block built from two `GBM` layers |
+| `AMGEBlock` / `AMGE` | Embedding | First-/second-order channel statistics, statistical rectification gating, surface-response suppression, and gated residual fusion |
+| `WavePool` | Transform | Fixed Haar wavelet decomposition producing LL/LH/HL/HH; parameter-free and not trained |
+| `MCA` | Attention | Grouped directional attention: elongated pooling + 3×3 depthwise conv + local response weighting |
+| `GLCM` | Attention | Channel attention compatible with both 4D feature maps and 3D sequence features |
+| `FDPG` | Prototype generation | GBM → Haar decomposition → directional weighting → high-/low-frequency routing → self-attention aggregation → global context; outputs the support prototype |
+| `PMA` | Matching | Patch partitioning + Sinkhorn normalization + confidence-gated fusion |
+| `SepAtrousConv` | Basic unit | Atrous depthwise-separable convolution; a multi-scale branch of `CMAD` |
+| `CMAD` | Decoder | Query-support fusion + two 2× upsampling stages + multi-scale atrous convolutions + detail/semantic dual branches → segmentation head |
+| `CFMANet` | Main model | Assembles the backbone and the modules above; includes parameter freezing, losses, and the optimizer interface |
+| `mfanet` | Alias | Subclass of `CFMANet` used as the model factory (`from model.mfanet import mfanet`) |
+
+---
+
+## Results
+
+Input 200×200, single-GPU inference; values are test-set means (%).
 
 | Dataset | 1-shot mIoU | 1-shot FB-IoU | 5-shot mIoU | 5-shot FB-IoU |
 | :--- | :---: | :---: | :---: | :---: |
@@ -75,39 +121,38 @@ python Final_CFMANet_TII.py
 | NFM9 | 73.94 | 83.78 | 74.87 | 84.61 |
 | FSSD-12 | 68.34 | 81.56 | 70.14 | 82.14 |
 
-**效率**
+**Efficiency**
 
-- 参数量：27.68 M
-- FLOPs：82.16 G
-- 推理速度：28.8 FPS（约 34.7 ms/图；RTX 4070，batch size 1，输入 200×200）
-- TensorRT FP16：单 ROI 约 15 ms，端到端延迟低于 200 ms（RTX 4090）
+- Parameters: 27.68 M
+- FLOPs: 82.16 G
+- Inference speed: 28.8 FPS (~34.7 ms/image; RTX 4070, batch size 1, 200×200 input)
+- TensorRT FP16: ~15 ms per ROI, with end-to-end latency below 200 ms (RTX 4090)
 
 ---
 
-## 使用示例
+## Programmatic Usage
 
-### 构建模型
+### Building the Model
 
 ```python
-import torch
-from Final_CFMANet_TII import CFMANet
+from model.mfanet import mfanet
 
 
 class Args:
-    vgg = False          # True 走 VGG16-BN，False 走 ResNet
-    layers = 50          # 50 / 101，仅在 vgg=False 时生效
-    classes = 2          # 分割头固定输出 2 通道（缺陷 / 背景）
+    vgg = False          # True uses VGG16-BN, False uses ResNet
+    layers = 50          # 50 / 101, only effective when vgg=False
+    classes = 2          # Segmentation head fixed to 2 channels (defect / background)
     shot = 1
     ignore_label = 255
-    weight_decay = 5e-5  # 仅 get_optim 使用
+    weight_decay = 5e-5  # Used only by get_optim
 
 
-model = CFMANet(Args())
+model = mfanet(Args())
 ```
 
-`__init__` 实际读取的字段是 `vgg`、`layers`、`classes`、`shot`、`ignore_label`，`get_optim` 另外读取 `weight_decay`。
+The fields actually read in `__init__` are `vgg`, `layers`, `classes`, `shot`, and `ignore_label`; `get_optim` additionally reads `weight_decay`.
 
-### 推理
+### Inference
 
 ```python
 # query:        [B, 3, H, W]
@@ -120,9 +165,9 @@ with torch.no_grad():
     pred = logits.argmax(dim=1)
 ```
 
-`eval()` 模式下 `forward` 直接返回 `seg_out`，即未做 argmax / softmax 的原始 logits。
+In `eval()` mode, `forward` returns `seg_out` directly — the raw logits without argmax or softmax.
 
-### 训练
+### Training
 
 ```python
 model.train()
@@ -131,47 +176,47 @@ pred, total_loss, main_loss, patch_loss = model(
 )
 ```
 
-- `forward(x, s_x, s_y, y)` 中四个位置参数依次是 query、support、support_mask、query_label。
-- 总损失为 `main + 0.3 * aux + 0.1 * patch`：`main` 是主分割头交叉熵，`aux` 来自 `layer4` 上的辅助分割头，`patch` 是 query 特征与原型之间的 patch 级距离。
-- 训练模式下 `pred` 是 argmax 后的类别索引 `[B, H, W]`，不是 logits。请将上述接口接入你的训练框架与数据加载器。
+- In `forward(x, s_x, s_y, y)`, the four positional arguments are query, support, support mask, and query label, in that order.
+- The total loss is `main + 0.3 * aux + 0.1 * patch`: `main` is the cross-entropy of the main segmentation head, `aux` comes from the auxiliary segmentation head on `layer4`, and `patch` is the patch-level distance between query features and the prototype.
+- In training mode, `pred` is the argmax class index `[B, H, W]`, not the logits.
 
-### 优化器
+### Optimizer
 
 ```python
-optimizer = model.get_optim(args, LR=0.001)   # AdamW，weight_decay 取 args.weight_decay
+optimizer = model.get_optim(args, LR=0.001)   # AdamW; weight_decay is taken from args.weight_decay
 ```
 
 ---
 
-## 数据组织
+## Data Organization
 
-按 episode 形式组织输入：
+Inputs are organized as episodes:
 
 ```text
 query:        [B, 3, H, W]
 support:      [B, shot, 3, H, W]
-support_mask: [B, shot, H, W]   # 前景为 1，背景为 0
-query_label:  [B, H, W]         # 无效像素填 ignore_label
+support_mask: [B, shot, H, W]   # Foreground is 1, background is 0
+query_label:  [B, H, W]         # Invalid pixels are set to ignore_label
 ```
 
-`support_mask` 需为浮点或可比较类型（内部以 `== 1` 取前景）；`query_label` 按 `ignore_label` 忽略无效像素。
+`support_mask` should be a floating-point or comparable type (the foreground is taken internally with `== 1`); `query_label` ignores invalid pixels according to `ignore_label`.
 
 ---
 
-## 实现说明
+## Implementation Notes
 
-- 主干 `layer0`–`layer4` 在构造时冻结（`requires_grad=False`），且 `train()` 被重写，训练阶段主干与 BN 也始终处于 eval 模式。
-- `layer3` / `layer4` 的卷积被改为空洞卷积（dilation 2 / 4），用于扩大感受野。
-- query 侧取 `layer3` 与 `layer2` 特征拼接（ResNet-50 下 1024+512=1536 通道）送入 `AMGE` 降到 256；辅助分支单独投影 `layer4`（2048 通道）。
-- 分割头输出通道固定为 2，`args.classes` 请保持 2。
-- `PMA` 的 `patch_size` 默认 5，可通过 `PMA(dim, patch_size=...)` 调整；`CMAD` 内部使用默认值。
-- 路由权重只用于分析/可视化，不影响推理结果：`model.last_support_routing`（方向与高低频权重）、`model.fdpg.last_routing`。
+- Backbone stages `layer0`–`layer4` are frozen at construction (`requires_grad=False`), and `train()` is overridden so the backbone and its BatchNorm layers always stay in eval mode during training.
+- The convolutions in `layer3` / `layer4` are changed to atrous (dilated) convolutions (dilation 2 / 4) to enlarge the receptive field.
+- On the query side, the `layer3` and `layer2` features are concatenated (1024 + 512 = 1536 channels under ResNet-50) and fed into `AMGE`, which reduces them to 256; the auxiliary branch projects `layer4` (2048 channels) separately.
+- The segmentation head has a fixed output of 2 channels; keep `args.classes` at 2.
+- The `patch_size` of `PMA` defaults to 5 and can be adjusted via `PMA(dim, patch_size=...)`; `CMAD` uses the default internally.
+- The routing weights are only for analysis/visualization and do not affect inference: `model.last_support_routing` (directional and high/low-frequency weights) and `model.fdpg.last_routing`.
 
 ---
 
 ## License
 
-本项目采用 MIT License（SPDX 标识符：`MIT`），可自由使用、修改、分发（含商业用途），保留版权声明即可。完整条款见 [LICENSE](LICENSE)。
+This project is released under the **MIT License** (SPDX identifier: `MIT`). You may use, modify, and distribute it freely, including for commercial purposes, as long as the copyright notice is retained. See [LICENSE](LICENSE) for the full terms.
 
 Copyright (c) 2026 CFMANet contributors
 
@@ -179,4 +224,4 @@ Copyright (c) 2026 CFMANet contributors
 
 ## Contact
 
-代码相关问题请在本仓库提交 issue。
+For code-related questions, please open an issue in this repository.
