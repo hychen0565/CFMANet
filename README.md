@@ -1,6 +1,8 @@
 # CFMANet
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-1.10+-red.svg)](https://pytorch.org/)
 
 The official PyTorch implementation of **CFMANet** for **few-shot industrial defect segmentation**. This repository is a complete, runnable training and evaluation framework: the model and its core modules are implemented in `model/cfmanet.py`, which ships together with the ResNet/VGG backbones, data loaders, configuration files, and the train/validation entry points.
 
