@@ -63,6 +63,8 @@ The repository ships with the **list files** under `data_list/`, but not the raw
 The corresponding train/val list paths (`DATA.train_list`, `DATA.val_list`) are already configured in the YAML file; switch the commented entries to move between CGFSDS-9, FSSD-12, and NFM9, or between folds.
 
 > **NFM9 Dataset Download Link**: https://pan.baidu.com/s/1T1_pejKy-p1wUIOx9nfAKw?pwd=1234 password: 1234
+> **CGFSDS-9 Dataset Download Link**: https://pan.baidu.com/s/1kNc5HW_VsmD1DRHoZEIqYw?pwd=h4hb
+> **FSSD-12 Dataset Download Link**: https://pan.baidu.com/s/1_BORNJrO4msD0OPEcVSc-Q?pwd=9m10
 
 ---
 
