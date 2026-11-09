@@ -31,6 +31,7 @@ The backbone constructors rely on torchvision's `model_urls` and ImageNet weight
 │   └── fold0_resnet50.yaml    # Default configuration (ResNet-50, fold 0)
 ├── model/
 │   ├── cfmanet.py              # CFMANet model and core modules
+│   ├── mfanet.py              # MFANet comparison model
 │   ├── resnet.py              # ResNet backbones
 │   └── vgg.py                 # VGG16-BN backbone
 ├── util/
@@ -54,9 +55,12 @@ The repository ships with the **list files** under `data_list/`, but not the raw
 ```text
 ./data/CGFSDS-9     # default in config/fold0_resnet50.yaml
 ./data/FSSD-12      # alternative dataset
+./data/NFM9         # NFM9 dataset
 ```
 
-The corresponding train/val list paths (`DATA.train_list`, `DATA.val_list`) are already configured in the YAML file; switch the commented entries to move between CGFSDS-9 and FSSD-12 or between folds.
+The corresponding train/val list paths (`DATA.train_list`, `DATA.val_list`) are already configured in the YAML file; switch the commented entries to move between CGFSDS-9, FSSD-12, and NFM9, or between folds.
+
+> **NFM9 Dataset Download Link**: https://pan.baidu.com/s/1T1_pejKy-p1wUIOx9nfAKw?pwd=1234 password: 1234
 
 ---
 
